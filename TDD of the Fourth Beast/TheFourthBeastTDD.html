@@ -1,0 +1,212 @@
+<script src="../tinytest.js"></script>
+<script>
+/*Documentation for naked librarySystem*/
+
+/*librarySystem 
+The librarySystem function can dynamically store or reference the return value of its callback function depending on whether it is called with one argument or two. If two arguments are provided, the return value of the provided function is stored by a previously declared object  The property name is set to the 1st argument.  If one argument is provided, the function returns the value stored on the property matching the provided argument. 
+
+	Variables:
+		libraryStorage: object declared before the librarySystem function definition
+
+	Arguments:
+		libraryName: Accepts a string, dynamically stores, or references a property on the previously declared libraryStorage object  depending on weather it is called as a singled argument or the first of three. 
+		
+		array: Accepts an array of strings, which declares dependencies(other libraries stored on the libraryStorage object).  Values in the array are passed into the callback as arguments, if array is empty no dependencies are declared
+
+		callback: a function which returns a value, if callback exists, libraryStorage['libraryName'] is set to its return value, if ommited function returns a previously saved reference.
+
+
+ return value:
+	If called with a single argument, returns libraryStorage[libraryName]
+*/
+
+/*Requirements:
+	Case 1: Function has three arguments, and second argument is an empty array
+		If three arguments and array is empty, it should accept a string as the first argument, an empty array as the second argument, and a callback function as the third argument
+		If three arguments and array is empty, it should set libraryStorage[libraryName] to the return value of the callback
+
+	Case 2: Function has three arguments and second argument has atleast 1 element, and for each element libraryStorage[element] exists
+		If three arguments and array has atleast 1 value, it should accept a string as the first argument, an array as the second, and a callback function, which accepts elements of the array from the second argument passed in as its arguments, as the third argument 
+		If three arguments and array has atleast 1 value, it should set libraryStorage[libraryName] to the return value of the callback, 
+											              callback function should have access to the 2nd arguments array elements as arguments in the callback
+	Case 3: Function has three arguments and second argument has atleast 1 element, and atleast one libraryStorage[element]  does not exist
+		If three arguments and array has atleast 1 value, it should accept a string as the first argument, an array as the second, and a callback function, which accepts elements of the array from the second argument passed in as its arguments, as the third argument 
+		If three arguments and array has atleast 1 value, it should set libraryStorage[libraryName] to the return value of the callback, 
+											              callback function should have access to 2nd arguments array elements as arguments in the callback
+		For any element from the 2nd array argument, if libraryStorage[element] does not exist, libraryStorage[element] should be set to null
+
+	Case 4: Function has one argument
+		If only one argument, it should return libraryStorage[libraryName]
+
+	librarySystem function should work have the same behaviour if enclosed in an IIFE
+*/
+
+// naked librarySystem function
+var libraryStorage = {};
+
+	function librarySystem(libraryName, array, callback) {
+		if(arguments.length === 1) { //----> Checks to see if there is only 1 arument
+			if(typeof libraryStorage[libraryName] === 'function') {
+				libraryStorage[libraryName]();
+				return libraryStorage[libraryName];
+			} else {
+				return libraryStorage[libraryName];
+	        }
+		}
+		
+		if(arguments.length === 3) {
+			if(arguments[1].length > 0) { //---> Checks to see if 2nd argument has elements
+			//This line converts array of strings in 2nd argument to references to respective libraryStorage properties
+				var dependencyArray = arguments[1].map(function(element) {
+					return libraryStorage[element];
+				})
+				var counter = 0; // increments if elements in dependencyArray are 'undefined'
+				for(var i = 0; i < dependencyArray.length; i++) {
+					if(typeof dependencyArray[i] === 'undefined')
+					counter++;
+				}
+				if(counter > 0) {
+					libraryStorage[libraryName] = function() {
+						librarySystem(libraryName, array, callback);
+					}
+				} else {
+				libraryStorage[libraryName] = callback.apply(this, dependencyArray);
+	        	}
+			}
+			if(arguments[1].length === 0) { //----> Checks to see if 2nd argument is empty an empty array
+				libraryStorage[libraryName] = callback();
+			}
+		}
+	};
+
+tests({
+	'If three arguments and array is empty, set libraryStorage[libraryName] to the return value of the callback': function() {
+		librarySystem('dependency',[], function() {
+			return 'loaded dependency';
+		})
+		eq(libraryStorage.dependency, 'loaded dependency'); 
+	},
+	'If three arguments and array has atleast 1 value, callback should accept the element in array from the 2nd argument as an argument, and set libraryStorage[libraryName] to the return value of the callback, ':function() {
+		librarySystem('app',['dependency'], function(dependency) {
+			return 'app with ' + dependency;
+		})
+		eq(libraryStorage.app, 'app with loaded dependency')
+	},
+	'If one argument, return libraryStorage[libraryName]': function() {
+		librarySystem('bookShelf',[], function() {
+			return 'Book of Elves';
+		})
+		
+		librarySystem('testLibrary', ['bookShelf'],function(bookShelf) {
+			return 'testLibrary has a ' + bookShelf;
+		})
+		
+		result = librarySystem('testLibrary');
+		eq(result, 'testLibrary has a Book of Elves');
+	},
+	'If 2nd argument is an array with more than one element, you should be able to pass the elements of the array into the callback as arguments': function() {
+			librarySystem('name', [], function() {
+	  			return 'Joseph';
+			});
+
+			librarySystem('school', [], function() {
+				return 'Watch and Code';
+			});
+
+			librarySystem('studiesAt', ['name', 'school'], function(name, school) {
+	  			return name + ' studies at ' + school;
+			});
+
+			var result = librarySystem('studiesAt');	
+			eq(result, 'Joseph studies at Watch and Code')
+		},
+	'If three arguments and second argument has atleast 1 element, and atleast one libraryStorage[element] does not exist, save a reference to this function call that only runs its callback once the referenced libraries from the array in the 2nd argument are created': function() {
+		var callbackCounter = 0;
+
+		librarySystem('workBlurb', ['name', 'company'], function(name, company) {
+  			callbackCounter++
+  			return name + ' works at ' + company;
+		});
+		eq(callbackCounter, 0);
+
+		librarySystem('workBlurb')
+		eq(callbackCounter, 0);
+
+		librarySystem('name', [], function() {
+  			return 'Gordon';
+		});
+
+		librarySystem('company', [], function() {
+  			return 'Watch and Code';
+		});
+		result = librarySystem('workBlurb')
+		eq(callbackCounter, 1);
+		eq(result, 'Gordon works at Watch and Code')
+	},
+	'If librarySystem is enclosed in an IIFE, it should still pass the previous test': function() {
+		var callbackCounter = 0;
+
+		(function() { // creates libraryStorage object, declares librarySystem in an IIFE, and saves a reference to librarySytem on the window
+			var libraryStorage = {};
+
+			function librarySystem(libraryName, array, callback) {
+				if(arguments.length === 1) { //----> Checks to see if there is only 1 arument
+					if(typeof libraryStorage[libraryName] === 'function') {
+						libraryStorage[libraryName]();
+						return libraryStorage[libraryName];
+					} else {
+						return libraryStorage[libraryName];
+			        }
+				}
+				
+				if(arguments.length === 3) {
+					if(arguments[1].length > 0) { //---> Checks to see if 2nd argument has elements
+					//This line converts array of strings in 2nd argument to references to respective libraryStorage properties
+						var dependencyArray = arguments[1].map(function(element) {
+							return libraryStorage[element];
+						})
+						var counter = 0; // increments if elements in dependencyArray are 'undefined'
+						for(var i = 0; i < dependencyArray.length; i++) {
+							if(typeof dependencyArray[i] === 'undefined') {
+								counter++;
+							}
+						}
+						if(counter > 0) {
+							libraryStorage[libraryName] = function() {
+								librarySystem(libraryName, array, callback);
+							}
+						} else {
+						libraryStorage[libraryName] = callback.apply(this, dependencyArray);
+			        	}
+					}
+					if(arguments[1].length === 0) { //----> Checks to see if 2nd argument is empty an empty array
+						libraryStorage[libraryName] = callback();
+					}
+				}
+			}
+
+			window.librarySystem = librarySystem;
+		})();
+
+		librarySystem('workBlurb', ['name', 'company'], function(name, company) {
+  			callbackCounter++
+  			return name + ' works at ' + company;
+		});
+		eq(callbackCounter, 0); //checks to see if callback has not invoked with undefined dependencies
+		librarySystem('workBlurb')
+		eq(callbackCounter, 0); //checks to see if callback was not invoked with undefined
+
+		librarySystem('name', [], function() {
+  			return 'Gordon';
+		});
+
+		librarySystem('company', [], function() {
+  			return 'Watch and Code';
+		});
+		result = librarySystem('workBlurb')
+		eq(callbackCounter, 1); //checks to make sure callback was run after undefined dependencies are defined
+		eq(result, 'Gordon works at Watch and Code')
+	}
+
+});
+</script>
